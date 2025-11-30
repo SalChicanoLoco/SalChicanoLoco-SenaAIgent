@@ -2,7 +2,6 @@
 ModelAgent - ML analytics agent for water quality predictions and data analysis.
 """
 
-import random
 from typing import Any
 
 

@@ -2,7 +2,6 @@
 ImageAgent - Image generation agent for creating visualizations and AI-generated images.
 """
 
-import base64
 import hashlib
 import os
 from typing import Any
