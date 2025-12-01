@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SenaAIgent Dashboard</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-hover: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent: #6366f1;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #3b82f6;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        header h1 {
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--accent), var(--success));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        header p {
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 1.5rem;
+        }
+        
+        @media (max-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .card {
+            background: var(--bg-card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .card h2 {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+        
+        /* Load Gauge */
+        .gauge-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 0;
+        }
+        
+        .gauge {
+            position: relative;
+            width: 200px;
+            height: 100px;
+            overflow: hidden;
+        }
+        
+        .gauge-background {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: conic-gradient(
+                from 180deg,
+                var(--success) 0deg,
+                var(--warning) 108deg,
+                var(--danger) 180deg
+            );
+            clip-path: polygon(0 0, 100% 0, 100% 50%, 0 50%);
+        }
+        
+        .gauge-mask {
+            position: absolute;
+            width: 160px;
+            height: 160px;
+            background: var(--bg-card);
+            border-radius: 50%;
+            top: 20px;
+            left: 20px;
+        }
+        
+        .gauge-needle {
+            position: absolute;
+            width: 4px;
+            height: 80px;
+            background: var(--text-primary);
+            bottom: 0;
+            left: 98px;
+            transform-origin: bottom center;
+            transform: rotate(-90deg);
+            transition: transform 0.5s ease-out;
+            border-radius: 2px;
+        }
+        
+        .gauge-center {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            bottom: -10px;
+            left: 90px;
+        }
+        
+        .gauge-value {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-top: 1rem;
+        }
+        
+        .gauge-label {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+        
+        .load-level {
+            display: inline-block;
+            padding: 0.25rem 1rem;
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+        
+        .level-low { background: var(--success); color: #000; }
+        .level-moderate { background: var(--warning); color: #000; }
+        .level-high { background: #f97316; color: #000; }
+        .level-critical { background: var(--danger); color: #fff; }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .metric {
+            background: var(--bg-dark);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+        
+        /* Agents */
+        .agents-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .agent-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-dark);
+            padding: 1rem;
+            border-radius: 0.5rem;
+        }
+        
+        .agent-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .agent-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        
+        .status-available { background: var(--success); }
+        .status-busy { background: var(--warning); }
+        
+        .agent-name {
+            font-weight: 600;
+        }
+        
+        .agent-type {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .agent-stats {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        /* Queue */
+        .queue-bar {
+            height: 8px;
+            background: var(--bg-dark);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+        
+        .queue-fill {
+            height: 100%;
+            background: var(--accent);
+            transition: width 0.3s ease;
+        }
+        
+        .queue-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        /* Scheduler */
+        .scheduler-status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .scheduler-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .scheduler-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .scheduler-running { background: var(--success); }
+        .scheduler-stopped { background: var(--danger); animation: none; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #4f46e5;
+        }
+        
+        .btn-secondary {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+        
+        .btn-secondary:hover {
+            background: #475569;
+        }
+        
+        .btn-success {
+            background: var(--success);
+            color: #000;
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        
+        /* Recent Tasks */
+        .tasks-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .task-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .task-item:last-child {
+            border-bottom: none;
+        }
+        
+        .task-type {
+            font-weight: 500;
+        }
+        
+        .task-status {
+            font-size: 0.75rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: 0.25rem;
+        }
+        
+        .status-completed { background: var(--success); color: #000; }
+        .status-queued { background: var(--info); color: #fff; }
+        .status-failed { background: var(--danger); color: #fff; }
+        
+        /* Auto-refresh indicator */
+        .refresh-indicator {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            background: var(--bg-card);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 SenaAIgent Dashboard</h1>
+            <p>Real-time system monitoring and load management</p>
+        </header>
+        
+        <div class="dashboard-grid">
+            <!-- Left Column: Gauge and Metrics -->
+            <div>
+                <div class="card">
+                    <h2>System Load</h2>
+                    <div class="gauge-container">
+                        <div class="gauge">
+                            <div class="gauge-background"></div>
+                            <div class="gauge-mask"></div>
+                            <div class="gauge-needle" id="gaugeNeedle"></div>
+                            <div class="gauge-center"></div>
+                        </div>
+                        <div class="gauge-value" id="loadValue">0%</div>
+                        <div class="gauge-label">Load Score</div>
+                        <span class="load-level level-low" id="loadLevel">LOW</span>
+                    </div>
+                    
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <div class="metric-value" id="agentUtil">0%</div>
+                            <div class="metric-label">Agent Utilization</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="queuePressure">0%</div>
+                            <div class="metric-label">Queue Pressure</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="throughput">0</div>
+                            <div class="metric-label">Tasks/Min</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="completedCount">0</div>
+                            <div class="metric-label">Completed</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-top: 1.5rem;">
+                    <h2>Scheduler</h2>
+                    <div class="scheduler-status">
+                        <div class="scheduler-indicator">
+                            <div class="scheduler-dot scheduler-stopped" id="schedulerDot"></div>
+                            <span id="schedulerStatus">Stopped</span>
+                        </div>
+                        <span id="schedulerInterval">Interval: --</span>
+                    </div>
+                    <div class="controls">
+                        <button class="btn btn-success" onclick="startScheduler()">Start</button>
+                        <button class="btn btn-danger" onclick="stopScheduler()">Stop</button>
+                        <button class="btn btn-primary" onclick="autoAdjust()">Auto Adjust</button>
+                        <button class="btn btn-secondary" onclick="processQueue()">Process Queue</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: Agents, Queue, Tasks -->
+            <div>
+                <div class="card">
+                    <h2>Registered Agents</h2>
+                    <div class="agents-list" id="agentsList">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-top: 1.5rem;">
+                    <h2>Task Queue</h2>
+                    <div class="queue-bar">
+                        <div class="queue-fill" id="queueFill" style="width: 0%"></div>
+                    </div>
+                    <div class="queue-stats">
+                        <span>Pending: <strong id="pendingTasks">0</strong></span>
+                        <span>Completed: <strong id="completedTasks">0</strong></span>
+                    </div>
+                    <div class="controls">
+                        <button class="btn btn-primary" onclick="createTestTask()">Add Test Task</button>
+                        <button class="btn btn-secondary" onclick="refreshDashboard()">Refresh</button>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-top: 1.5rem;">
+                    <h2>Recent Tasks</h2>
+                    <div class="tasks-list" id="tasksList">
+                        <div class="task-item">
+                            <span class="task-type">No recent tasks</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="refresh-indicator">
+        Auto-refresh: <span id="refreshTimer">5s</span>
+    </div>
+    
+    <script>
+        const API_BASE = window.location.origin;
+        let refreshInterval;
+        let countdownInterval;
+        let countdown = 5;
+        
+        async function fetchDashboard() {
+            try {
+                const response = await fetch(`${API_BASE}/api/dashboard`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateGauge(data.load_gauge);
+                    updateMetrics(data.metrics);
+                    updateAgents(data.agents);
+                    updateQueue(data.queue);
+                    updateScheduler(data.scheduler);
+                    updateTasks(data.recent_tasks);
+                }
+            } catch (error) {
+                console.error('Failed to fetch dashboard:', error);
+            }
+        }
+        
+        function updateGauge(gauge) {
+            const needle = document.getElementById('gaugeNeedle');
+            const value = document.getElementById('loadValue');
+            const level = document.getElementById('loadLevel');
+            
+            // Convert 0-100 to -90 to 90 degrees
+            const angle = (gauge.score / 100) * 180 - 90;
+            needle.style.transform = `rotate(${angle}deg)`;
+            
+            value.textContent = `${gauge.score}%`;
+            value.style.color = gauge.color;
+            
+            level.textContent = gauge.level.toUpperCase();
+            level.className = `load-level level-${gauge.level}`;
+        }
+        
+        function updateMetrics(metrics) {
+            document.getElementById('agentUtil').textContent = `${metrics.agent_utilization}%`;
+            document.getElementById('queuePressure').textContent = `${metrics.queue_pressure}%`;
+            document.getElementById('throughput').textContent = metrics.throughput_per_minute;
+            document.getElementById('completedCount').textContent = metrics.completed_tasks;
+        }
+        
+        function updateAgents(agents) {
+            const list = document.getElementById('agentsList');
+            const agentData = agents.agents || [];
+            
+            if (agentData.length === 0) {
+                list.innerHTML = '<div class="agent-item">No agents registered</div>';
+                return;
+            }
+            
+            list.innerHTML = agentData.map(agent => `
+                <div class="agent-item">
+                    <div class="agent-info">
+                        <div class="agent-status status-${agent.status}"></div>
+                        <div>
+                            <div class="agent-name">${agent.id}</div>
+                            <div class="agent-type">${agent.type} • ${agent.capabilities.join(', ')}</div>
+                        </div>
+                    </div>
+                    <div class="agent-stats">
+                        ${agent.tasks_completed} completed
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function updateQueue(queue) {
+            const pending = queue.queue_length || 0;
+            const completed = queue.completed_count || 0;
+            const maxQueue = 20; // Visual max for progress bar
+            
+            document.getElementById('pendingTasks').textContent = pending;
+            document.getElementById('completedTasks').textContent = completed;
+            document.getElementById('queueFill').style.width = `${Math.min(100, (pending / maxQueue) * 100)}%`;
+        }
+        
+        function updateScheduler(scheduler) {
+            const dot = document.getElementById('schedulerDot');
+            const status = document.getElementById('schedulerStatus');
+            const interval = document.getElementById('schedulerInterval');
+            
+            if (scheduler.running) {
+                dot.className = 'scheduler-dot scheduler-running';
+                status.textContent = 'Running';
+                interval.textContent = `Interval: ${scheduler.interval}s`;
+            } else {
+                dot.className = 'scheduler-dot scheduler-stopped';
+                status.textContent = 'Stopped';
+                interval.textContent = 'Interval: --';
+            }
+        }
+        
+        function updateTasks(tasks) {
+            const list = document.getElementById('tasksList');
+            
+            if (!tasks || tasks.length === 0) {
+                list.innerHTML = '<div class="task-item"><span class="task-type">No recent tasks</span></div>';
+                return;
+            }
+            
+            list.innerHTML = tasks.map(task => `
+                <div class="task-item">
+                    <span class="task-type">${task.type}</span>
+                    <span class="task-status status-${task.status}">${task.status}</span>
+                </div>
+            `).join('');
+        }
+        
+        async function apiPost(action, data = {}) {
+            try {
+                const response = await fetch(`${API_BASE}/api/orchestrator`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, ...data })
+                });
+                return await response.json();
+            } catch (error) {
+                console.error('API error:', error);
+                return { success: false, error: error.message };
+            }
+        }
+        
+        async function startScheduler() {
+            await apiPost('start_scheduler', { interval: 5.0 });
+            refreshDashboard();
+        }
+        
+        async function stopScheduler() {
+            await apiPost('stop_scheduler');
+            refreshDashboard();
+        }
+        
+        async function autoAdjust() {
+            const result = await apiPost('auto_adjust');
+            if (result.actions_taken && result.actions_taken.length > 0) {
+                alert('Adjustments made:\n' + result.actions_taken.join('\n'));
+            } else {
+                alert('No adjustments needed');
+            }
+            refreshDashboard();
+        }
+        
+        async function processQueue() {
+            await apiPost('process_queue');
+            refreshDashboard();
+        }
+        
+        async function createTestTask() {
+            const types = ['predict', 'analyze_aesthetics', 'generate_image'];
+            const priorities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+            
+            await apiPost('create_task', {
+                task_type: types[Math.floor(Math.random() * types.length)],
+                payload: { test: true, timestamp: Date.now() },
+                priority: priorities[Math.floor(Math.random() * priorities.length)]
+            });
+            refreshDashboard();
+        }
+        
+        function refreshDashboard() {
+            fetchDashboard();
+            countdown = 5;
+        }
+        
+        function startAutoRefresh() {
+            refreshInterval = setInterval(fetchDashboard, 5000);
+            countdownInterval = setInterval(() => {
+                countdown--;
+                if (countdown <= 0) countdown = 5;
+                document.getElementById('refreshTimer').textContent = `${countdown}s`;
+            }, 1000);
+        }
+        
+        // Initialize
+        fetchDashboard();
+        startAutoRefresh();
+    </script>
+</body>
+</html>

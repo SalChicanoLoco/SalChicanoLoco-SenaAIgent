@@ -4,14 +4,14 @@ aesthetic analysis, and agent orchestration.
 """
 
 import os
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 
-from agents import ModelAgent, ImageAgent, ArtAgent, OrchestratorAgent, TaskPriority
+from agents import ModelAgent, ImageAgent, ArtAgent, OrchestratorAgent, TaskPriority, RecurrencePattern
 
 
 def create_app():
     """Application factory for the Flask app."""
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='../static', static_url_path='/static')
 
     # Initialize agents
     model_agent = ModelAgent()
@@ -424,6 +424,123 @@ def create_app():
                 )
             elif action == "cancel":
                 result = orchestrator.cancel_task(data.get("task_id", ""))
+            # Scheduler actions
+            elif action == "start_scheduler":
+                result = orchestrator.start_scheduler(
+                    interval=data.get("interval", 5.0),
+                    max_tasks_per_cycle=data.get("max_tasks"),
+                )
+            elif action == "stop_scheduler":
+                result = orchestrator.stop_scheduler()
+            elif action == "scheduler_status":
+                result = orchestrator.get_scheduler_status()
+            # Scheduled tasks
+            elif action == "schedule_task":
+                priority_str = data.get("priority", "MEDIUM").upper()
+                priority = getattr(TaskPriority, priority_str, TaskPriority.MEDIUM)
+                recurrence_str = data.get("recurrence", "ONCE").upper()
+                recurrence = getattr(RecurrencePattern, recurrence_str, RecurrencePattern.ONCE)
+                result = orchestrator.schedule_task(
+                    task_type=data.get("task_type", ""),
+                    payload=data.get("payload", {}),
+                    run_at=data.get("run_at"),
+                    recurrence=recurrence,
+                    priority=priority,
+                    context=data.get("context"),
+                )
+            elif action == "get_scheduled_tasks":
+                result = orchestrator.get_scheduled_tasks()
+            elif action == "cancel_scheduled":
+                result = orchestrator.cancel_scheduled_task(data.get("schedule_id", ""))
+            # Webhooks
+            elif action == "register_webhook":
+                result = orchestrator.register_webhook(
+                    webhook_id=data.get("webhook_id", ""),
+                    url=data.get("url", ""),
+                    events=data.get("events"),
+                    headers=data.get("headers"),
+                )
+            elif action == "unregister_webhook":
+                result = orchestrator.unregister_webhook(data.get("webhook_id", ""))
+            elif action == "get_webhooks":
+                result = orchestrator.get_webhooks()
+            # Load management
+            elif action == "get_load":
+                result = orchestrator.get_load_metrics()
+            elif action == "auto_adjust":
+                result = orchestrator.auto_adjust_load()
+            elif action == "dashboard":
+                result = orchestrator.get_system_dashboard()
+            # Caching
+            elif action == "cache_result":
+                result = orchestrator.cache_task_result(
+                    task_type=data.get("task_type", ""),
+                    payload=data.get("payload", {}),
+                    result=data.get("result"),
+                    ttl=data.get("ttl"),
+                )
+            elif action == "get_cached":
+                result = orchestrator.get_cached_result(
+                    task_type=data.get("task_type", ""),
+                    payload=data.get("payload", {}),
+                )
+            elif action == "clear_cache":
+                result = orchestrator.clear_cache(data.get("task_type"))
+            elif action == "cache_stats":
+                result = {"success": True, "cache": orchestrator.get_cache_stats()}
+            elif action == "create_with_cache":
+                priority_str = data.get("priority", "MEDIUM").upper()
+                priority = getattr(TaskPriority, priority_str, TaskPriority.MEDIUM)
+                result = orchestrator.create_task_with_cache(
+                    task_type=data.get("task_type", ""),
+                    payload=data.get("payload", {}),
+                    priority=priority,
+                    use_cache=data.get("use_cache", True),
+                    context=data.get("context"),
+                )
+            # Routing
+            elif action == "routing_stats":
+                result = orchestrator.get_routing_stats()
+            elif action == "detect_redundant":
+                result = orchestrator.detect_redundant_tasks()
+            # Agent pools
+            elif action == "create_pool":
+                # Get base agent from existing registered agent
+                base_agent_id = data.get("base_agent_id", "model")
+                base_agent = orchestrator._agents.get(base_agent_id, {}).get("instance")
+                if not base_agent:
+                    result = {"success": False, "error": f"Base agent {base_agent_id} not found"}
+                else:
+                    result = orchestrator.create_agent_pool(
+                        pool_id=data.get("pool_id", ""),
+                        agent_type=data.get("agent_type", ""),
+                        base_agent=base_agent,
+                        pool_size=data.get("pool_size", 3),
+                        capabilities=data.get("capabilities"),
+                    )
+            elif action == "pool_status":
+                result = orchestrator.get_pool_status(data.get("pool_id"))
+            elif action == "scale_pool":
+                result = orchestrator.scale_pool(
+                    pool_id=data.get("pool_id", ""),
+                    new_size=data.get("new_size", 3),
+                )
+            elif action == "parallel_capacity":
+                result = orchestrator.get_parallel_capacity()
+            # Parallel execution
+            elif action == "execute_parallel":
+                result = orchestrator.execute_parallel(
+                    task_ids=data.get("task_ids", []),
+                    max_parallel=data.get("max_parallel"),
+                )
+            elif action == "process_parallel":
+                result = orchestrator.process_queue_parallel(data.get("max_parallel"))
+            # External trigger
+            elif action == "trigger":
+                result = orchestrator.trigger_external(
+                    trigger_id=data.get("trigger_id", ""),
+                    payload=data.get("trigger_payload"),
+                )
             else:
                 return jsonify({"success": False, "error": f"Unknown action: {action}"}), 400
 
@@ -435,13 +552,38 @@ def create_app():
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 
+    @app.route("/api/dashboard", methods=["GET"])
+    def dashboard_api():
+        """
+        Dashboard data endpoint for frontend load gauge and metrics.
+
+        Returns:
+            JSON with complete dashboard data including load gauge.
+        """
+        return jsonify(orchestrator.get_system_dashboard())
+
+    @app.route("/api/load", methods=["GET"])
+    def load_metrics():
+        """
+        Load metrics endpoint for real-time gauge updates.
+
+        Returns:
+            JSON with load gauge data and metrics.
+        """
+        return jsonify(orchestrator.get_load_metrics())
+
+    @app.route("/dashboard")
+    def dashboard_page():
+        """Serve the dashboard frontend."""
+        return send_from_directory(app.static_folder, 'dashboard.html')
+
     @app.errorhandler(404)
     def not_found(e):
         """Handle 404 errors."""
         return jsonify({
             "error": "Not Found",
             "message": "The requested endpoint does not exist",
-            "available_endpoints": ["/", "/api/water", "/api/image", "/api/art", "/api/orchestrator"],
+            "available_endpoints": ["/", "/api/water", "/api/image", "/api/art", "/api/orchestrator", "/api/dashboard", "/api/load", "/dashboard"],
         }), 404
 
     @app.errorhandler(500)

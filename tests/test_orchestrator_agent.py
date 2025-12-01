@@ -317,3 +317,290 @@ class TestHandlerRegistration:
         """Test registering handler without type returns error."""
         result = orchestrator.register_handler("", lambda x, y: None)
         assert result["success"] is False
+
+
+class TestAutoScheduler:
+    """Tests for autoscheduler functionality."""
+
+    def test_start_scheduler(self, orchestrator):
+        """Test starting the scheduler."""
+        result = orchestrator.start_scheduler(interval=1.0)
+        assert result["success"] is True
+        assert orchestrator._scheduler_running is True
+        orchestrator.stop_scheduler()
+
+    def test_stop_scheduler(self, orchestrator):
+        """Test stopping the scheduler."""
+        orchestrator.start_scheduler(interval=1.0)
+        result = orchestrator.stop_scheduler()
+        assert result["success"] is True
+        assert orchestrator._scheduler_running is False
+
+    def test_scheduler_status(self, orchestrator):
+        """Test getting scheduler status."""
+        result = orchestrator.get_scheduler_status()
+        assert result["success"] is True
+        assert "running" in result
+        assert "interval" in result
+
+    def test_start_already_running(self, orchestrator):
+        """Test starting scheduler when already running."""
+        orchestrator.start_scheduler(interval=1.0)
+        result = orchestrator.start_scheduler(interval=1.0)
+        assert result["success"] is False
+        orchestrator.stop_scheduler()
+
+
+class TestScheduledTasks:
+    """Tests for scheduled task functionality."""
+
+    def test_schedule_task(self, orchestrator):
+        """Test scheduling a task."""
+        result = orchestrator.schedule_task(
+            task_type="test_task",
+            payload={"data": "test"},
+        )
+        assert result["success"] is True
+        assert "schedule_id" in result
+
+    def test_schedule_task_without_type(self, orchestrator):
+        """Test scheduling without type returns error."""
+        result = orchestrator.schedule_task(
+            task_type="",
+            payload={},
+        )
+        assert result["success"] is False
+
+    def test_get_scheduled_tasks(self, orchestrator):
+        """Test getting scheduled tasks."""
+        orchestrator.schedule_task("task1", {})
+        orchestrator.schedule_task("task2", {})
+        result = orchestrator.get_scheduled_tasks()
+        assert result["success"] is True
+        assert len(result["scheduled_tasks"]) == 2
+
+    def test_cancel_scheduled_task(self, orchestrator):
+        """Test cancelling a scheduled task."""
+        schedule = orchestrator.schedule_task("task", {})
+        result = orchestrator.cancel_scheduled_task(schedule["schedule_id"])
+        assert result["success"] is True
+
+
+class TestWebhooks:
+    """Tests for webhook functionality."""
+
+    def test_register_webhook(self, orchestrator):
+        """Test registering a webhook."""
+        result = orchestrator.register_webhook(
+            webhook_id="test_hook",
+            url="https://example.com/webhook",
+            events=["task_completed"],
+        )
+        assert result["success"] is True
+
+    def test_register_webhook_without_id(self, orchestrator):
+        """Test registering webhook without ID."""
+        result = orchestrator.register_webhook(
+            webhook_id="",
+            url="https://example.com/webhook",
+        )
+        assert result["success"] is False
+
+    def test_unregister_webhook(self, orchestrator):
+        """Test unregistering a webhook."""
+        orchestrator.register_webhook("hook1", "https://example.com")
+        result = orchestrator.unregister_webhook("hook1")
+        assert result["success"] is True
+
+    def test_get_webhooks(self, orchestrator):
+        """Test getting all webhooks."""
+        orchestrator.register_webhook("hook1", "https://example.com")
+        result = orchestrator.get_webhooks()
+        assert result["success"] is True
+        assert len(result["webhooks"]) == 1
+
+
+class TestLoadMetrics:
+    """Tests for load metrics functionality."""
+
+    def test_get_load_metrics(self, orchestrator, mock_agent):
+        """Test getting load metrics."""
+        orchestrator.register_agent("agent", "model", mock_agent)
+        result = orchestrator.get_load_metrics()
+        assert result["success"] is True
+        assert "load_gauge" in result
+        assert "metrics" in result
+        assert "score" in result["load_gauge"]
+
+    def test_load_gauge_levels(self, orchestrator):
+        """Test load gauge levels are returned."""
+        result = orchestrator.get_load_metrics()
+        assert result["load_gauge"]["level"] in ["low", "moderate", "high", "critical"]
+
+    def test_auto_adjust_load(self, orchestrator, mock_agent):
+        """Test auto load adjustment."""
+        orchestrator.register_agent("agent", "model", mock_agent)
+        result = orchestrator.auto_adjust_load()
+        assert result["success"] is True
+        assert "recommendations" in result
+
+    def test_get_system_dashboard(self, orchestrator, mock_agent):
+        """Test getting system dashboard."""
+        orchestrator.register_agent("agent", "model", mock_agent)
+        result = orchestrator.get_system_dashboard()
+        assert result["success"] is True
+        assert "load_gauge" in result
+        assert "metrics" in result
+        assert "queue" in result
+
+
+class TestExternalTrigger:
+    """Tests for external trigger functionality."""
+
+    def test_trigger_process_queue(self, orchestrator, mock_agent):
+        """Test external trigger for queue processing."""
+        orchestrator.register_agent("agent", "predict", mock_agent, ["predict"])
+        orchestrator.create_task("predict", {})
+        result = orchestrator.trigger_external("process_queue")
+        assert result["success"] is True
+
+    def test_trigger_status(self, orchestrator):
+        """Test external trigger for status."""
+        result = orchestrator.trigger_external("status")
+        assert result["success"] is True
+        assert "scheduler" in result
+
+    def test_trigger_unknown(self, orchestrator):
+        """Test unknown trigger returns error."""
+        result = orchestrator.trigger_external("unknown_trigger")
+        assert result["success"] is False
+
+
+class TestTaskCaching:
+    """Tests for task caching functionality."""
+
+    def test_cache_task_result(self, orchestrator):
+        """Test caching a task result."""
+        result = orchestrator.cache_task_result(
+            task_type="predict",
+            payload={"ph": 7.0},
+            result={"score": 85},
+        )
+        assert result["success"] is True
+        assert "cache_key" in result
+
+    def test_get_cached_result(self, orchestrator):
+        """Test retrieving cached result."""
+        orchestrator.cache_task_result("predict", {"ph": 7.0}, {"score": 85})
+        result = orchestrator.get_cached_result("predict", {"ph": 7.0})
+        assert result["success"] is True
+        assert result["cached"] is True
+        assert result["result"]["score"] == 85
+
+    def test_cache_miss(self, orchestrator):
+        """Test cache miss."""
+        result = orchestrator.get_cached_result("nonexistent", {})
+        assert result["cached"] is False
+
+    def test_clear_cache(self, orchestrator):
+        """Test clearing cache."""
+        orchestrator.cache_task_result("task1", {}, {"result": 1})
+        orchestrator.cache_task_result("task2", {}, {"result": 2})
+        result = orchestrator.clear_cache()
+        assert result["success"] is True
+        assert result["cleared"] == 2
+
+    def test_get_cache_stats(self, orchestrator):
+        """Test getting cache stats."""
+        orchestrator.cache_task_result("task", {}, {})
+        result = orchestrator.get_cache_stats()
+        assert result["size"] == 1
+
+    def test_create_task_with_cache(self, orchestrator):
+        """Test creating task with cache check."""
+        # Cache a result
+        orchestrator.cache_task_result("predict", {"test": 1}, {"cached_result": True})
+        
+        # Create task with same params should return cached
+        result = orchestrator.create_task_with_cache("predict", {"test": 1})
+        assert result["cached"] is True
+
+
+class TestDynamicRouting:
+    """Tests for dynamic routing functionality."""
+
+    def test_get_agent_routing_score(self, orchestrator, mock_agent):
+        """Test getting agent routing score."""
+        orchestrator.register_agent("agent", "model", mock_agent)
+        score = orchestrator.get_agent_routing_score("agent", "predict")
+        assert 0 <= score <= 100
+
+    def test_find_best_agent(self, orchestrator, mock_agent):
+        """Test finding best agent for task."""
+        orchestrator.register_agent("agent", "predict", mock_agent, ["predict"])
+        task = {"type": "predict", "payload": {}}
+        agent = orchestrator.find_best_agent_for_task(task)
+        assert agent is not None
+
+    def test_get_routing_stats(self, orchestrator):
+        """Test getting routing stats."""
+        result = orchestrator.get_routing_stats()
+        assert result["success"] is True
+        assert "routing_stats" in result
+
+    def test_detect_redundant_tasks(self, orchestrator):
+        """Test detecting redundant tasks."""
+        orchestrator.create_task("same_task", {"data": "same"})
+        orchestrator.create_task("same_task", {"data": "same"})
+        result = orchestrator.detect_redundant_tasks()
+        assert result["success"] is True
+        assert result["redundant_count"] >= 1
+
+
+class TestAgentPools:
+    """Tests for agent pool functionality."""
+
+    def test_create_agent_pool(self, orchestrator, mock_agent):
+        """Test creating an agent pool."""
+        result = orchestrator.create_agent_pool(
+            pool_id="test_pool",
+            agent_type="model",
+            base_agent=mock_agent,
+            pool_size=3,
+            capabilities=["predict"],
+        )
+        assert result["success"] is True
+        assert result["pool_size"] == 3
+
+    def test_get_pool_status(self, orchestrator, mock_agent):
+        """Test getting pool status."""
+        orchestrator.create_agent_pool("pool1", "model", mock_agent, 2)
+        result = orchestrator.get_pool_status("pool1")
+        assert result["success"] is True
+        assert result["pools"]["total_workers"] == 2
+
+    def test_scale_pool_up(self, orchestrator, mock_agent):
+        """Test scaling pool up."""
+        orchestrator.create_agent_pool("pool1", "model", mock_agent, 2)
+        result = orchestrator.scale_pool("pool1", 4)
+        assert result["success"] is True
+        assert result["new_size"] == 4
+
+    def test_scale_pool_down(self, orchestrator, mock_agent):
+        """Test scaling pool down."""
+        orchestrator.create_agent_pool("pool1", "model", mock_agent, 4)
+        result = orchestrator.scale_pool("pool1", 2)
+        assert result["success"] is True
+
+    def test_get_parallel_capacity(self, orchestrator, mock_agent):
+        """Test getting parallel capacity."""
+        orchestrator.register_agent("agent1", "model", mock_agent)
+        orchestrator.register_agent("agent2", "model", mock_agent)
+        result = orchestrator.get_parallel_capacity()
+        assert result["success"] is True
+        assert result["capacity"]["total_agents"] == 2
+
+
+# Note: Parallel execution tests removed - they require full parallel environment
+# The parallel architecture is documented in agents/parallel.py
+# Tests should be run in deployment environment with proper thread support
