@@ -2,6 +2,24 @@
 
 A robust backend-focused scaffold for AI-powered analytics and image generation, built with Flask and designed for scalable deployment.
 
+## Quick Start
+
+Get the API backend running in under 2 minutes:
+
+```bash
+# Clone and navigate to the project
+git clone https://github.com/SalChicanoLoco/SalChicanoLoco-SenaAIgent.git
+cd SalChicanoLoco-SenaAIgent
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start the API server
+python start_api.py
+```
+
+The API will be available at `http://localhost:5000`
+
 ## Features
 
 - **ML Analytics API**: Water quality analysis with predictive scoring
@@ -123,9 +141,23 @@ SenaAIgent/
    ```
 
 4. Run the development server:
+   
+   **Option A: Using the Python starter script (recommended)**
    ```bash
-   python api/app.py
+   python start_api.py
    ```
+   
+   **Option B: Using the bash starter script (Unix/Linux/macOS)**
+   ```bash
+   ./start_api.sh
+   ```
+   
+   **Option C: Manual start with PYTHONPATH**
+   ```bash
+   PYTHONPATH=$(pwd) python api/app.py
+   ```
+   
+   **Note:** The starter scripts (`start_api.py` and `start_api.sh`) automatically configure the Python path correctly.
 
 5. Access the API at `http://localhost:5000`
 
